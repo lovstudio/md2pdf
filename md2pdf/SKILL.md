@@ -54,39 +54,75 @@ All parameters except `--input` are optional — sensible defaults are applied.
 
 **IMPORTANT: You MUST use the `AskUserQuestion` tool to ask these questions BEFORE
 running the conversion. Do NOT list options as plain text — use the tool so the user
-gets a proper interactive prompt. Ask all three in a SINGLE `AskUserQuestion` call.**
+gets a proper interactive prompt. Ask all options in a SINGLE `AskUserQuestion` call.**
 
-Use `AskUserQuestion` with this exact format:
+Use `AskUserQuestion` with the following template. The tone should be friendly and
+concise — like a design assistant, not a config form:
 
 ```
-转 PDF 前需要确认几个选项：
+开始转 PDF！先帮你确认几个选项 👇
 
-1. 扉页图片（封面后的全页插图）
-   a) 跳过
-   b) 我提供本地图片路径
-   c) AI 根据内容自动生成
+━━━ 📐 设计风格 ━━━
+ a) 暖学术    — 陶土色调，温润典雅，适合人文/社科报告
+ b) 经典论文  — 棕色调，灵感源自 LaTeX classicthesis，适合学术论文
+ c) Tufte     — 极简留白，深红点缀，适合数据叙事/技术写作
+ d) 期刊蓝    — 藏蓝严谨，灵感源自 IEEE，适合正式发表风格
+ e) 精装书    — 咖啡色调，书卷气，适合长篇专著/技术书
+ f) 中国红    — 朱红配暖纸，适合中文正式报告/白皮书
+ g) 水墨      — 纯灰黑，素雅克制，适合文学/设计类内容
+ h) GitHub    — 蓝白极简，程序员熟悉的风格
+ i) Nord 冰霜 — 蓝灰北欧风，清爽现代
+ j) 海洋      — 青绿色调，清新自然
 
-2. 水印（每页淡色对角线文字）
-   a) 不加水印
-   b) 自定义水印文字（如 "DRAFT"、"内部资料"、"仅供学习"）
+━━━ 🖼 扉页图片（封面之后的全页插图） ━━━
+ 1) 跳过
+ 2) 我提供本地图片路径
+ 3) AI 根据内容自动生成一张
 
-3. 封底宣传物料（名片/二维码/品牌信息）
-   a) 跳过
-   b) 我提供图片（名片/二维码/logo 等）
-   c) 纯文字（网站/公众号/版权声明等）
+━━━ 💧 水印 ━━━
+ 1) 不加
+ 2) 自定义文字（如 "DRAFT"、"内部资料"）
 
-请回复你的选择，如 "1a 2b:仅供学习参考 3b:/path/to/qr.png"
+━━━ 📇 封底物料（名片/二维码/品牌） ━━━
+ 1) 跳过
+ 2) 我提供图片
+ 3) 纯文字信息
+
+示例回复："a, 扉页跳过, 水印:仅供学习参考, 封底图片:/path/qr.png"
+直接说人话就行，不用记编号 😄
 ```
 
-### Handling Responses
+### Mapping User Choices to CLI Args
 
-- **Frontispiece "AI generate"**: Read the document title + first paragraphs, use an
-  image generation tool to create a themed illustration, show for approval, then
-  pass via `--frontispiece /path/to/image.png`
-- **Frontispiece "local"**: Use path directly via `--frontispiece <path>`
-- **Watermark**: Pass via `--watermark "文字内容"`
-- **Back cover image**: Pass via `--banner <path>` (recommend 1200px+ wide)
-- **Back cover text**: Use `--disclaimer "声明文字"` and `--copyright "© 版权信息"`
+| Choice | CLI arg |
+|--------|---------|
+| Design style a-j | `--theme` with value from table below |
+| Frontispiece local | `--frontispiece <path>` |
+| Frontispiece AI | Generate image first, then `--frontispiece /tmp/frontispiece.png` |
+| Watermark text | `--watermark "文字"` |
+| Back cover image | `--banner <path>` |
+| Back cover text | `--disclaimer "声明"` and/or `--copyright "© 信息"` |
+
+### Theme Name Mapping
+
+| Choice | `--theme` value | Inspiration |
+|--------|----------------|-------------|
+| a) 暖学术 | `warm-academic` | Lovstudio design system |
+| b) 经典论文 | `classic-thesis` | LaTeX classicthesis |
+| c) Tufte | `tufte` | Edward Tufte's books |
+| d) 期刊蓝 | `ieee-journal` | IEEE journal format |
+| e) 精装书 | `elegant-book` | LaTeX ElegantBook |
+| f) 中国红 | `chinese-red` | Chinese formal documents |
+| g) 水墨 | `ink-wash` | 水墨画 / ink wash painting |
+| h) GitHub | `github-light` | GitHub Markdown style |
+| i) Nord | `nord-frost` | Nord color scheme |
+| j) 海洋 | `ocean-breeze` | — |
+
+### Handling AI-Generated Frontispiece
+
+If user chose AI generation: read the document title + first paragraphs, use an
+image generation tool to create a themed illustration matching the chosen design
+style, show for approval, then pass via `--frontispiece /path/to/image.png`
 
 ## Architecture
 

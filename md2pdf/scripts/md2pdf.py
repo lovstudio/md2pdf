@@ -209,6 +209,37 @@ THEMES = {
         "accent":"#BD93F9","accent_light":"#FF79C6","border":"#44475A",
         "watermark_rgba":(0.35,0.30,0.45,0.08)
     },
+    # --- Inspired by classic LaTeX templates ---
+    "tufte": {
+        "canvas":"#FFFFF8","canvas_sec":"#F7F7F0","ink":"#111111","ink_faded":"#999988",
+        "accent":"#980000","accent_light":"#C04040","border":"#E0DDD0",
+        "watermark_rgba":(0.88,0.87,0.82,0.08)
+    },
+    "classic-thesis": {
+        "canvas":"#FEFEFE","canvas_sec":"#F5F2EB","ink":"#2B2B2B","ink_faded":"#7A7568",
+        "accent":"#8B4513","accent_light":"#A0522D","border":"#D6CFC2",
+        "watermark_rgba":(0.82,0.78,0.72,0.10)
+    },
+    "ieee-journal": {
+        "canvas":"#FFFFFF","canvas_sec":"#F5F5F5","ink":"#000000","ink_faded":"#555555",
+        "accent":"#003366","accent_light":"#336699","border":"#CCCCCC",
+        "watermark_rgba":(0.82,0.82,0.82,0.08)
+    },
+    "elegant-book": {
+        "canvas":"#FBF9F1","canvas_sec":"#F0ECE0","ink":"#1A1A1A","ink_faded":"#6E6B5E",
+        "accent":"#5B3A29","accent_light":"#7D5642","border":"#DDD8C8",
+        "watermark_rgba":(0.85,0.82,0.75,0.10)
+    },
+    "chinese-red": {
+        "canvas":"#FFFDF5","canvas_sec":"#F8F0E0","ink":"#1A1009","ink_faded":"#8C7A5E",
+        "accent":"#B22222","accent_light":"#D44040","border":"#E8DCC8",
+        "watermark_rgba":(0.88,0.82,0.72,0.10)
+    },
+    "ink-wash": {
+        "canvas":"#F8F6F0","canvas_sec":"#EEEAE0","ink":"#2C2C2C","ink_faded":"#8A8A80",
+        "accent":"#404040","accent_light":"#666660","border":"#D8D4C8",
+        "watermark_rgba":(0.80,0.80,0.76,0.10)
+    },
 }
 
 def load_theme(name, theme_file=None):
