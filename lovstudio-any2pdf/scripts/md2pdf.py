@@ -358,45 +358,80 @@ def load_theme(name, theme_file=None):
     }
 
 # ═══════════════════════════════════════════════════════════════════════
-# CJK DETECTION + FONT WRAPPING
+# CJK DETECTION + FONT WRAPPING（性能优化：用 bisect 二分查找替代 any() 线性扫描）
 # ═══════════════════════════════════════════════════════════════════════
+from bisect import bisect_right as _bisect_right
+
+# 将范围展平为排序的 (start, end) 列表，用于二分查找
 _CJK_RANGES = [
-    (0x4E00,0x9FFF),(0x3400,0x4DBF),(0xF900,0xFAFF),(0x3000,0x303F),
-    (0xFF00,0xFFEF),(0x2E80,0x2EFF),(0x2F00,0x2FDF),(0xFE30,0xFE4F),
+    (0x2E80,0x2EFF),(0x2F00,0x2FDF),(0x3000,0x303F),(0x3400,0x4DBF),
+    (0x4E00,0x9FFF),(0xF900,0xFAFF),(0xFE30,0xFE4F),(0xFF00,0xFFEF),
     (0x20000,0x2A6DF),(0x2A700,0x2B73F),(0x2B740,0x2B81F),
 ]
+# 预计算：展平的起始点列表，用于 bisect
+_CJK_STARTS = [lo for lo, hi in _CJK_RANGES]
+_CJK_ENDS   = [hi for lo, hi in _CJK_RANGES]
 
 def _is_cjk(ch):
+    """二分查找判断字符是否为 CJK"""
     cp = ord(ch)
-    return any(lo <= cp <= hi for lo, hi in _CJK_RANGES)
+    idx = _bisect_right(_CJK_STARTS, cp) - 1
+    return idx >= 0 and cp <= _CJK_ENDS[idx]
 
 def _font_wrap(text):
-    """Wrap CJK runs in <font name='CJK'> tags for reportlab Paragraph."""
-    out, buf, in_cjk = [], [], False
-    for ch in text:
-        c = _is_cjk(ch)
-        if c != in_cjk and buf:
-            seg = ''.join(buf)
-            out.append(f"<font name='CJK'>{seg}</font>" if in_cjk else seg)
-            buf = []
-        buf.append(ch); in_cjk = c
-    if buf:
-        seg = ''.join(buf)
-        out.append(f"<font name='CJK'>{seg}</font>" if in_cjk else seg)
-    return ''.join(out)
+    """Wrap CJK runs in <font name='CJK'> tags for reportlab Paragraph.
+    优化：减少逐字符函数调用，批量处理连续同类字符"""
+    if not text:
+        return text
+    # 快速路径：纯 ASCII 文本无需处理
+    try:
+        text.encode('ascii')
+        return text
+    except UnicodeEncodeError:
+        pass
+    parts = []
+    buf_start = 0
+    prev_cjk = _is_cjk(text[0])
+    for i in range(1, len(text)):
+        cur_cjk = _is_cjk(text[i])
+        if cur_cjk != prev_cjk:
+            seg = text[buf_start:i]
+            if prev_cjk:
+                parts.append(f"<font name='CJK'>{seg}</font>")
+            else:
+                parts.append(seg)
+            buf_start = i
+            prev_cjk = cur_cjk
+    # 处理最后一段
+    seg = text[buf_start:]
+    if prev_cjk:
+        parts.append(f"<font name='CJK'>{seg}</font>")
+    else:
+        parts.append(seg)
+    return ''.join(parts)
+
+def _split_cjk_segs(text):
+    """将混合文本拆分为 (font, text) 段列表，批量处理避免逐字符函数调用"""
+    if not text:
+        return []
+    segs = []
+    buf_start = 0
+    prev_cjk = _is_cjk(text[0])
+    for i in range(1, len(text)):
+        cur_cjk = _is_cjk(text[i])
+        if cur_cjk != prev_cjk:
+            segs.append(("CJK" if prev_cjk else "Sans", text[buf_start:i]))
+            buf_start = i
+            prev_cjk = cur_cjk
+    segs.append(("CJK" if prev_cjk else "Sans", text[buf_start:]))
+    return segs
 
 def _draw_mixed(c, x, y, text, size, anchor="left", max_w=0):
     """Draw mixed CJK/Latin text on canvas with font switching.
     If max_w > 0, wrap into multiple lines. Returns bottom y of drawn text."""
     if max_w > 0:
         return _draw_mixed_wrap(c, x, y, text, size, anchor, max_w)
-    segs, buf, in_cjk = [], [], False
-    for ch in text:
-        cj = _is_cjk(ch)
-        if cj != in_cjk and buf:
-            segs.append(("CJK" if in_cjk else "Sans", ''.join(buf))); buf = []
-        buf.append(ch); in_cjk = cj
-    if buf: segs.append(("CJK" if in_cjk else "Sans", ''.join(buf)))
+    segs = _split_cjk_segs(text)
     total_w = sum(c.stringWidth(t, f, size) for f, t in segs)
     if anchor == "right": x -= total_w
     elif anchor == "center": x -= total_w / 2
@@ -406,15 +441,7 @@ def _draw_mixed(c, x, y, text, size, anchor="left", max_w=0):
 
 def _measure_mixed(c, text, size):
     """Measure width of mixed CJK/Latin text."""
-    w = 0
-    buf, in_cjk = [], False
-    for ch in text:
-        cj = _is_cjk(ch)
-        if cj != in_cjk and buf:
-            w += c.stringWidth(''.join(buf), "CJK" if in_cjk else "Sans", size); buf = []
-        buf.append(ch); in_cjk = cj
-    if buf: w += c.stringWidth(''.join(buf), "CJK" if in_cjk else "Sans", size)
-    return w
+    return sum(c.stringWidth(t, f, size) for f, t in _split_cjk_segs(text))
 
 def _draw_mixed_wrap(c, x, y, text, size, anchor, max_w):
     """Word-wrap mixed text into multiple lines, shrink font if single word overflows."""
@@ -453,7 +480,7 @@ def _draw_mixed_segs(c, x, y, segs):
         x += c.stringWidth(txt, font, sz)
 
 # ═══════════════════════════════════════════════════════════════════════
-# INLINE MARKDOWN + ESCAPING
+# INLINE MARKDOWN + ESCAPING（性能优化：缓存 md_inline 结果 + 预编译正则）
 # ═══════════════════════════════════════════════════════════════════════
 def esc(text):
     return text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
@@ -468,14 +495,30 @@ def esc_code(text):
         out.append('&nbsp;' * indent + stripped)
     return '<br/>'.join(out)
 
+# 预编译正则表达式，避免每次调用都重新编译
+_RE_BOLD = re.compile(r'\*\*(.+?)\*\*')
+_RE_CODE = re.compile(r'`(.+?)`')
+_RE_ITALIC = re.compile(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)')
+_RE_LINK = re.compile(r'\[(.+?)\]\(.+?\)')
+
+# 缓存 md_inline 结果，避免重复处理相同文本
+_md_inline_cache = {}
+
 def md_inline(text, accent_hex="#CC785C"):
+    """Apply inline markdown formatting with caching."""
+    cache_key = (text, accent_hex)
+    if cache_key in _md_inline_cache:
+        return _md_inline_cache[cache_key]
+
     text = esc(text)
-    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
-    text = re.sub(r'`(.+?)`',
-        rf"<font name='Mono' size='8' color='{accent_hex}'>\1</font>", text)
-    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
-    text = re.sub(r'\[(.+?)\]\(.+?\)', r'<u>\1</u>', text)
-    return _font_wrap(text)
+    text = _RE_BOLD.sub(r'<b>\1</b>', text)
+    text = _RE_CODE.sub(
+        lambda m: f"<font name='Mono' size='8' color='{accent_hex}'>{m.group(1)}</font>", text)
+    text = _RE_ITALIC.sub(r'<i>\1</i>', text)
+    text = _RE_LINK.sub(r'<u>\1</u>', text)
+    result = _font_wrap(text)
+    _md_inline_cache[cache_key] = result
+    return result
 
 # ═══════════════════════════════════════════════════════════════════════
 # CUSTOM FLOWABLES
@@ -1134,6 +1177,9 @@ class PDFBuilder:
                     else:
                         merged += ' ' + pl
                 story.append(Paragraph(md_inline(merged, ah), ST['body']))
+            else:
+                # Empty line or unmatched pattern — skip it
+                i += 1
             continue
 
         return story, toc

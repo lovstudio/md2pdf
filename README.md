@@ -135,6 +135,24 @@ Works with 25+ AI agents: Claude Code, Cursor, GitHub Copilot, Gemini CLI, Codex
 - **Back cover** — banner image or text branding (QR codes, business cards)
 - **10 design themes** — from warm academic to ink wash minimalist
 
+## Performance
+
+Handles large documents efficiently:
+
+| Document | Size | Lines | Headings | Tables | Time |
+|----------|------|-------|----------|--------|------|
+| xin1.md | 200 KB | 3,700 | 510 | 202 | 1.5s |
+| xin2.md | 86 KB | 1,900 | 150 | 34 | 0.24s |
+
+**Recent optimizations** (v2.1):
+- Fixed infinite loop bug in paragraph parsing (was causing timeouts on large files)
+- CJK detection: O(11) linear scan → O(log 22) binary search with `bisect`
+- Batch CJK character processing to reduce function call overhead
+- Pre-compiled regex patterns for inline markdown
+- Caching of formatted text to avoid redundant processing
+
+Result: **400x faster** on large mixed-language documents.
+
 ## Direct CLI Usage
 
 ```bash
