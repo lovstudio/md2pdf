@@ -1085,10 +1085,12 @@ class PDFBuilder:
                 toc.append(('chapter', title, cm.key))
                 i += 1; continue
 
-            # H3 = Section
-            if stripped.startswith('### '):
+            # H3–H6 = Section. Deeper levels fall back to the H3 style so their
+            # content is still rendered (ReportLab has no built-in H4–H6 styles here).
+            m_h = re.match(r'^(#{3,6})\s+(.+)$', stripped)
+            if m_h:
                 story.append(Spacer(1, 3*mm))
-                story.append(Paragraph(md_inline(stripped[4:].strip(), ah), ST['h3']))
+                story.append(Paragraph(md_inline(m_h.group(2).strip(), ah), ST['h3']))
                 story.append(Spacer(1, 1*mm))
                 i += 1; continue
 
@@ -1134,6 +1136,10 @@ class PDFBuilder:
                     else:
                         merged += ' ' + pl
                 story.append(Paragraph(md_inline(merged, ah), ST['body']))
+            else:
+                # Defensive: current line matched no handler above (e.g. a stray
+                # marker we don't parse). Advance to prevent an infinite loop.
+                i += 1
             continue
 
         return story, toc
