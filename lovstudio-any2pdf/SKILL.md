@@ -18,7 +18,7 @@ compatibility: >
   Linux: uses Carlito, Liberation Serif, Droid Sans Fallback, DejaVu Sans Mono.
 metadata:
   author: lovstudio
-  version: "1.0.0"
+  version: "1.1.0"
   tags: markdown pdf cjk reportlab typesetting
 ---
 
@@ -39,25 +39,48 @@ get wrong.
 
 ## Quick Start
 
+The recommended approach is to embed all metadata in the markdown file via YAML frontmatter, then run with a minimal command:
+
+```markdown
+---
+title: My Report
+author: Author Name
+theme: warm-academic
+---
+
+# My Report
+...
+```
+
 ```bash
-python md2pdf/scripts/md2pdf.py \
-  --input report.md \
-  --output report.pdf \
-  --title "My Report" \
-  --author "Author Name" \
-  --theme warm-academic
+# Preferred: uv (isolated, no side effects on project env)
+uv run --with reportlab lovstudio-any2pdf/scripts/md2pdf.py \
+  --input report.md --output report.pdf
+
+# Fallback: pip
+pip install reportlab --break-system-packages
+python lovstudio-any2pdf/scripts/md2pdf.py --input report.md --output report.pdf
 ```
 
 All parameters except `--input` are optional — sensible defaults are applied.
 
-## Pre-Conversion Options (MANDATORY)
+## Pre-Conversion Workflow (MANDATORY)
 
-**IMPORTANT: You MUST use the `AskUserQuestion` tool to ask these questions BEFORE
-running the conversion. Do NOT list options as plain text — use the tool so the user
-gets a proper interactive prompt. Ask all options in a SINGLE `AskUserQuestion` call.**
+### Step 1 — Read and Inspect the Markdown File
 
-Use `AskUserQuestion` with the following template. The tone should be friendly and
-concise — like a design assistant, not a config form:
+Before asking any questions, read the user's markdown file and check:
+
+- **Frontmatter**: Does it already have a `--- ... ---` block? If yes, note which keys are already set and skip asking for those.
+- **Title**: Is there a `# H1` heading? If yes, it will be used as the document title automatically.
+- **Structure**: Are headings well-formed (`##`, `###`)? Are there merged headings like `# Foo## Bar` on one line? (The preprocessor handles these, but worth noting.)
+- **Content hints**: Does the content suggest a particular theme (e.g. academic paper → `classic-thesis`, Chinese report → `chinese-red`, code-heavy → `github-light`)?
+
+Report a brief summary to the user, e.g.:
+> 已读取文档，共 8 个章节，检测到标题「xxx manual」，无 frontmatter。建议主题：`ieee-journal`（技术手册风格）。
+
+### Step 2 — Ask Design Options
+
+**IMPORTANT: Use the `AskUserQuestion` tool for this step.** Ask all options in a SINGLE call. Skip any options already covered by existing frontmatter.
 
 ```
 开始转 PDF！先帮你确认几个选项 👇
@@ -92,21 +115,35 @@ concise — like a design assistant, not a config form:
 直接说人话就行，不用记编号 😄
 ```
 
-### Mapping User Choices to CLI Args
+### Step 3 — Write Frontmatter into the Markdown File
 
-| Choice | CLI arg |
-|--------|---------|
-| Design style a-j | `--theme` with value from table below |
-| Frontispiece local | `--frontispiece <path>` |
-| Frontispiece AI | Generate image first, then `--frontispiece /tmp/frontispiece.png` |
-| Watermark text | `--watermark "文字"` |
-| Back cover image | `--banner <path>` |
-| Back cover text | `--disclaimer "声明"` and/or `--copyright "© 信息"` |
+After collecting user choices, **edit the markdown file directly** to prepend a frontmatter block (or update the existing one). Do NOT pass options as CLI args — frontmatter keeps the document self-contained and reproducible.
+
+Example frontmatter to write:
+
+```markdown
+---
+title: xxx manual
+author: Acme Biotech Ltd.
+footer-left: Acme Biotech Ltd.
+theme: ieee-journal
+watermark: DRAFT
+frontispiece: /tmp/frontispiece.png
+copyright: © Acme Biotech Ltd.
+---
+```
+
+Then run the minimal command:
+
+```bash
+uv run --with reportlab /path/to/lovstudio-any2pdf/scripts/md2pdf.py \
+  --input report.md --output report.pdf
+```
 
 ### Theme Name Mapping
 
-| Choice | `--theme` value | Inspiration |
-|--------|----------------|-------------|
+| Choice | `theme` value | Inspiration |
+|--------|--------------|-------------|
 | a) 暖学术 | `warm-academic` | Lovstudio design system |
 | b) 经典论文 | `classic-thesis` | LaTeX classicthesis |
 | c) Tufte | `tufte` | Edward Tufte's books |
@@ -122,7 +159,7 @@ concise — like a design assistant, not a config form:
 
 If user chose AI generation: read the document title + first paragraphs, use an
 image generation tool to create a themed illustration matching the chosen design
-style, show for approval, then pass via `--frontispiece /path/to/image.png`
+style, show for approval, then add `frontispiece: /path/to/image.png` to frontmatter.
 
 ## Architecture
 
@@ -134,7 +171,7 @@ Key components:
 1. **Font system**: Palatino (Latin body), Songti SC (CJK body), Menlo (code) on macOS; auto-fallback on Linux
 2. **CJK wrapper**: `_font_wrap()` wraps CJK character runs in `<font>` tags for automatic font switching
 3. **Mixed text renderer**: `_draw_mixed()` handles CJK/Latin mixed text on canvas (cover, headers, footers)
-4. **Code block handler**: `esc_code()` preserves indentation and line breaks in reportlab Paragraphs
+4. **Code block handler**: `esc_code()` preserves indentation, mid-line alignment, and line breaks in reportlab Paragraphs (all spaces → `&nbsp;`)
 5. **Smart table widths**: Proportional column widths based on content length, with 18mm minimum
 6. **Bookmark system**: `ChapterMark` flowable creates PDF sidebar bookmarks + named anchors
 7. **Heading preprocessor**: `_preprocess_md()` splits merged headings like `# Part## Chapter` into separate lines
@@ -162,33 +199,52 @@ Default reportlab breaks lines only at spaces, causing ugly splits like "Claude\
 `drawString()` / `drawCentredString()` with a Latin font can't render 年/月/日 etc.
 **Fix**: Use `_draw_mixed()` for ALL user-content canvas text (dates, stats, disclaimers).
 
+## Frontmatter Support
+
+All parameters (except `--input`, `--output`, `--theme-file`) can be set directly in the markdown file via YAML frontmatter. CLI args always take precedence over frontmatter values.
+
+```markdown
+---
+title: My Report
+author: Jane Doe
+date: 2026-04-17
+theme: nord-frost
+cover: true
+toc: true
+watermark: DRAFT
+---
+
+# My Report
+...
+```
+
 ## Configuration Reference
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--input` | (required) | Path to markdown file |
-| `--output` | `output.pdf` | Output PDF path |
-| `--title` | From first H1 | Document title for cover page |
-| `--subtitle` | `""` | Subtitle text |
-| `--author` | `""` | Author name |
-| `--date` | Today | Date string |
-| `--version` | `""` | Version string for cover |
-| `--watermark` | `""` | Watermark text (empty = none) |
-| `--theme` | `warm-academic` | Color theme name |
-| `--theme-file` | `""` | Custom theme JSON file path |
-| `--cover` | `true` | Generate cover page |
-| `--toc` | `true` | Generate table of contents |
-| `--page-size` | `A4` | Page size (A4 or Letter) |
-| `--frontispiece` | `""` | Full-page image after cover |
-| `--banner` | `""` | Back cover banner image |
-| `--header-title` | `""` | Report title in page header |
-| `--footer-left` | author | Brand/author in footer |
-| `--stats-line` | `""` | Stats on cover |
-| `--stats-line2` | `""` | Second stats line |
-| `--edition-line` | `""` | Edition line at cover bottom |
-| `--disclaimer` | `""` | Back cover disclaimer |
-| `--copyright` | `""` | Back cover copyright |
-| `--code-max-lines` | `30` | Max lines per code block |
+| Argument | Frontmatter Key | Default | Description |
+|----------|----------------|---------|-------------|
+| `--input` | — | (required) | Path to markdown file |
+| `--output` | — | `output.pdf` | Output PDF path |
+| `--title` | `title` | From first H1 | Document title for cover page |
+| `--subtitle` | `subtitle` | `""` | Subtitle text |
+| `--author` | `author` | `""` | Author name |
+| `--date` | `date` | Today | Date string |
+| `--version` | `version` | `""` | Version string for cover |
+| `--watermark` | `watermark` | `""` | Watermark text (empty = none) |
+| `--theme` | `theme` | `warm-academic` | Color theme name |
+| `--theme-file` | — | `""` | Custom theme JSON file path |
+| `--cover` | `cover` | `true` | Generate cover page |
+| `--toc` | `toc` | `true` | Generate table of contents |
+| `--page-size` | `page-size` | `A4` | Page size (A4 or Letter) |
+| `--frontispiece` | `frontispiece` | `""` | Full-page image after cover |
+| `--banner` | `banner` | `""` | Back cover banner image |
+| `--header-title` | `header-title` | `""` | Report title in page header |
+| `--footer-left` | `footer-left` | author | Brand/author in footer |
+| `--stats-line` | `stats-line` | `""` | Stats on cover |
+| `--stats-line2` | `stats-line2` | `""` | Second stats line |
+| `--edition-line` | `edition-line` | `""` | Edition line at cover bottom |
+| `--disclaimer` | `disclaimer` | `""` | Back cover disclaimer |
+| `--copyright` | `copyright` | `""` | Back cover copyright |
+| `--code-max-lines` | `code-max-lines` | `30` | Max lines per code block |
 
 ## Themes
 
@@ -198,6 +254,14 @@ Available: `warm-academic`, `nord-frost`, `github-light`, `solarized-light`,
 Each theme defines: page background, ink color, accent color, faded text, border, code background, watermark tint.
 
 ## Dependencies
+
+If `uv` is available, no installation is needed — it creates an isolated ephemeral environment on the fly:
+
+```bash
+uv run --with reportlab /path/to/lovstudio-any2pdf/scripts/md2pdf.py --input report.md --output report.pdf
+```
+
+Otherwise, install with pip:
 
 ```bash
 pip install reportlab --break-system-packages
