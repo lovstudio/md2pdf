@@ -40,6 +40,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 import platform as _platform
 _PLAT = _platform.system()  # "Darwin", "Linux", "Windows"
 
+# Fonts shipped alongside this script (e.g. NotoEmoji-Regular.ttf for emoji
+# rendering, since reportlab can't use color-bitmap/COLR fonts and most systems
+# only ship NotoColorEmoji).
+_BUNDLED_FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+
 def _find_font(candidates):
     """Return first existing path from candidates list.
     Each candidate is either a string path or a (path, subfontIndex) tuple."""
@@ -108,8 +113,8 @@ _FONT_CANDIDATES = {
     "CJK": [
         ("/System/Library/Fonts/Supplemental/Songti.ttc", 0),                   # macOS Songti SC
         "C:/Windows/Fonts/simsun.ttc",                                           # Windows SimSun (宋体)
-        "C:/Windows/Fonts/msyh.ttc",                                             # Windows MSYH (微软雅黑)
-        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",              # Linux Noto CJK
+        "C:/Windows/Fonts/msyh.ttc",                                              # Windows MSYH (微软雅黑)
+        "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.ttf",
         "/usr/share/fonts/noto-cjk/NotoSerifCJK-Regular.ttc",                   # Linux Fedora
         "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",            # Linux Droid
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
@@ -119,7 +124,7 @@ _FONT_CANDIDATES = {
         ("/System/Library/Fonts/Supplemental/Songti.ttc", 1),
         "C:/Windows/Fonts/simsunb.ttf",
         "C:/Windows/Fonts/msyhbd.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.ttf",
         "/usr/share/fonts/noto-cjk/NotoSerifCJK-Bold.ttc",
         "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
     ],
@@ -137,9 +142,28 @@ _FONT_CANDIDATES = {
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansMono-Bold.ttf",
     ],
+    # Emoji — monochrome outline fonts only. ReportLab cannot render color
+    # bitmap (CBDT/SBIX) or color-layer (COLR/CPAL) fonts, so NotoColorEmoji,
+    # Apple Color Emoji, and TwemojiMozilla all render as blank boxes.
+    "Emoji": [
+        os.path.join(_BUNDLED_FONTS_DIR, "NotoEmoji-Regular.ttf"),               # Bundled with this script
+        "/usr/share/fonts/truetype/ancient-scripts/Symbola_hint.ttf",            # Linux fonts-symbola
+        "/usr/share/fonts/truetype/ancient-scripts/Symbola605.ttf",
+        "/usr/share/fonts/TTF/Symbola.ttf",
+        "/usr/share/texlive/texmf-dist/fonts/truetype/google/noto-emoji/NotoEmoji-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+        "/usr/share/fonts/noto/NotoEmoji-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf",           # Linux Noto symbols (covers many emoji)
+        "/usr/share/fonts/noto/NotoSansSymbols2-Regular.ttf",
+        "C:/Windows/Fonts/seguisym.ttf",                                          # Windows Segoe UI Symbol
+    ],
 }
 
+# Set to True after register_fonts() if an emoji font was successfully registered.
+_EMOJI_AVAILABLE = False
+
 def register_fonts():
+    global _EMOJI_AVAILABLE
     missing = []
     for name, candidates in _FONT_CANDIDATES.items():
         spec = _find_font(candidates)
@@ -151,9 +175,20 @@ def register_fonts():
                 pdfmetrics.registerFont(TTFont(name, spec[0], subfontIndex=spec[1]))
             else:
                 pdfmetrics.registerFont(TTFont(name, spec))
+            if name == "Emoji":
+                _EMOJI_AVAILABLE = True
         except Exception as e:
             missing.append(name)
             print(f"Warning: Font {name} — {e}", file=sys.stderr)
+    # Emoji is optional — most documents work fine without it. Don't warn about it
+    # in the generic "missing fonts" line; show a softer hint instead.
+    if "Emoji" in missing:
+        missing.remove("Emoji")
+        print("Note: No monochrome emoji font found — emoji glyphs (e.g. 👇) will render as □.",
+              file=sys.stderr)
+        if _PLAT == "Linux":
+            print("  Fix: sudo apt install fonts-symbola   # or fonts-noto-core (NotoEmoji)",
+                  file=sys.stderr)
     if missing:
         print(f"Warning: Missing fonts: {', '.join(missing)}. PDF may have □ characters.", file=sys.stderr)
         if _PLAT == "Linux":
@@ -366,37 +401,63 @@ _CJK_RANGES = [
     (0x20000,0x2A6DF),(0x2A700,0x2B73F),(0x2B740,0x2B81F),
 ]
 
+# Emoji codepoint ranges (Misc Symbols, Dingbats, all Pictograph blocks, regional flags).
+_EMOJI_RANGES = [
+    (0x2600, 0x27BF),
+    (0x1F000, 0x1FAFF),
+]
+
+# Variation selectors and ZWJ — extend the surrounding emoji run rather than
+# breaking it into a separate font segment.
+_EMOJI_NEUTRALS = {0x200D, 0xFE0E, 0xFE0F}
+
 def _is_cjk(ch):
     cp = ord(ch)
     return any(lo <= cp <= hi for lo, hi in _CJK_RANGES)
 
-def _font_wrap(text):
-    """Wrap CJK runs in <font name='CJK'> tags for reportlab Paragraph."""
-    out, buf, in_cjk = [], [], False
+def _is_emoji(ch):
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES)
+
+def _segment_text(text, latin_font="Sans"):
+    """Split text into (font_name, segment) tuples by classifying each char as
+    Latin / CJK / Emoji. Falls back to CJK font for emoji when no emoji font is
+    registered (the CJK font at least covers more codepoints than Sans)."""
+    emoji_font = "Emoji" if _EMOJI_AVAILABLE else "CJK"
+    segs, buf = [], []
+    cur = latin_font
     for ch in text:
-        c = _is_cjk(ch)
-        if c != in_cjk and buf:
-            seg = ''.join(buf)
-            out.append(f"<font name='CJK'>{seg}</font>" if in_cjk else seg)
-            buf = []
-        buf.append(ch); in_cjk = c
+        if _is_emoji(ch):
+            kind = emoji_font
+        elif ord(ch) in _EMOJI_NEUTRALS and cur == emoji_font:
+            kind = emoji_font
+        elif _is_cjk(ch):
+            kind = "CJK"
+        else:
+            kind = latin_font
+        if kind != cur and buf:
+            segs.append((cur, ''.join(buf))); buf = []
+        buf.append(ch); cur = kind
     if buf:
-        seg = ''.join(buf)
-        out.append(f"<font name='CJK'>{seg}</font>" if in_cjk else seg)
+        segs.append((cur, ''.join(buf)))
+    return segs
+
+def _font_wrap(text):
+    """Wrap CJK and emoji runs in <font name='...'> tags for reportlab Paragraph."""
+    out = []
+    for font, seg in _segment_text(text, latin_font="Latin"):
+        if font == "Latin":
+            out.append(seg)
+        else:
+            out.append(f"<font name='{font}'>{seg}</font>")
     return ''.join(out)
 
 def _draw_mixed(c, x, y, text, size, anchor="left", max_w=0):
-    """Draw mixed CJK/Latin text on canvas with font switching.
+    """Draw mixed CJK/Latin/emoji text on canvas with font switching.
     If max_w > 0, wrap into multiple lines. Returns bottom y of drawn text."""
     if max_w > 0:
         return _draw_mixed_wrap(c, x, y, text, size, anchor, max_w)
-    segs, buf, in_cjk = [], [], False
-    for ch in text:
-        cj = _is_cjk(ch)
-        if cj != in_cjk and buf:
-            segs.append(("CJK" if in_cjk else "Sans", ''.join(buf))); buf = []
-        buf.append(ch); in_cjk = cj
-    if buf: segs.append(("CJK" if in_cjk else "Sans", ''.join(buf)))
+    segs = _segment_text(text, latin_font="Sans")
     total_w = sum(c.stringWidth(t, f, size) for f, t in segs)
     if anchor == "right": x -= total_w
     elif anchor == "center": x -= total_w / 2
@@ -405,16 +466,9 @@ def _draw_mixed(c, x, y, text, size, anchor="left", max_w=0):
         x += c.stringWidth(txt, font, size)
 
 def _measure_mixed(c, text, size):
-    """Measure width of mixed CJK/Latin text."""
-    w = 0
-    buf, in_cjk = [], False
-    for ch in text:
-        cj = _is_cjk(ch)
-        if cj != in_cjk and buf:
-            w += c.stringWidth(''.join(buf), "CJK" if in_cjk else "Sans", size); buf = []
-        buf.append(ch); in_cjk = cj
-    if buf: w += c.stringWidth(''.join(buf), "CJK" if in_cjk else "Sans", size)
-    return w
+    """Measure width of mixed CJK/Latin/emoji text."""
+    return sum(c.stringWidth(t, f, size)
+               for f, t in _segment_text(text, latin_font="Sans"))
 
 def _draw_mixed_wrap(c, x, y, text, size, anchor, max_w):
     """Word-wrap mixed text into multiple lines, shrink font if single word overflows."""
