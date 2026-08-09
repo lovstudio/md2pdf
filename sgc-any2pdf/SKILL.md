@@ -1,11 +1,11 @@
 ---
-name: lovstudio-any2pdf
+name: sgc-any2pdf
 description: >
   Convert Markdown documents to professionally typeset PDF files with reportlab.
   Handles CJK/Latin mixed text, fenced code blocks, tables, blockquotes, Obsidian
   callouts, inline images, emoji fallback, LaTeX-style formulas, cover pages,
   clickable TOC, PDF bookmarks, watermarks, and page numbers. Supports multiple
-  color themes (Warm Academic, Nord, GitHub Light, Solarized, etc.) and is
+  color themes (Configurable Academic, Nord, GitHub Light, Solarized, etc.) and is
   battle-tested for Chinese technical reports. Use this skill whenever the user
   wants to turn a .md file into a styled PDF, generate a report PDF from markdown,
   or create a print-ready document from markdown content — especially if CJK
@@ -20,7 +20,7 @@ compatibility: >
   Linux: uses DejaVu/Liberation/FreeFont/Noto, Noto CJK, Droid Sans Fallback,
   DejaVu Sans Mono, and Noto Emoji when available.
 metadata:
-  author: lovstudio
+  author: contributors
   version: "1.1.0"
   tags: markdown pdf cjk reportlab typesetting
 ---
@@ -111,7 +111,7 @@ concise — like a design assistant, not a config form:
 
 | Choice | `--theme` value | Inspiration |
 |--------|----------------|-------------|
-| a) 暖学术 | `warm-academic` | Lovstudio design system |
+| a) 暖学术 | `warm-academic` | Skill Publisher design system |
 | b) 经典论文 | `classic-thesis` | LaTeX classicthesis |
 | c) Tufte | `tufte` | Edward Tufte's books |
 | d) 期刊蓝 | `ieee-journal` | IEEE journal format |
@@ -221,3 +221,11 @@ Recommended Ubuntu/Debian fonts:
 ```bash
 sudo apt install fonts-dejavu-core fonts-liberation fonts-freefont-ttf fonts-noto fonts-noto-cjk fonts-noto-color-emoji
 ```
+
+## Runtime context (shared)
+
+运行前读取本 Skill 包的 `skill.yaml`，由宿主提供 `skill-runtime/v1` 上下文。字段解析顺序为：当前请求、项目上下文、个人 Preferences、品牌 Profile、通用默认值。
+
+- 只使用 Manifest 声明的字段；Profile 保存公开品牌事实，Preferences 保存个人工作偏好。
+- `required: true` 字段缺失时，按 Manifest 的问题配置向用户提出一个聚焦问题；用户明确同意后再保存回答。
+- 报错提供可复制的 `context_id`、字段路径与来源，诊断内容避开秘密、完整私人路径和原始配置。

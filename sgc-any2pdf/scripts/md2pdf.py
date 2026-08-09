@@ -269,7 +269,7 @@ _DEFAULT_LAYOUT = {
 THEMES = {
     "warm-academic": {
         "canvas":"#F9F9F7","canvas_sec":"#F0EEE6","ink":"#181818","ink_faded":"#87867F",
-        "accent":"#CC785C","accent_light":"#D99A82","border":"#E8E6DC",
+        "accent":"#4F46E5","accent_light":"#D99A82","border":"#E8E6DC",
         "watermark_rgba":(0.82,0.80,0.76,0.12),
         "layout": {
             "body_font":"Serif","body_size":10.5,"body_leading":17,
@@ -633,7 +633,7 @@ def esc_code(text):
         out.append(e.replace(' ', '&nbsp;'))
     return '<br/>'.join(out)
 
-def md_inline(text, accent_hex="#CC785C"):
+def md_inline(text, accent_hex="#4F46E5"):
     text = esc(text)
     code_spans = []
     def _code_span(m):
@@ -697,7 +697,7 @@ class ClayDot(Flowable):
     def __init__(self, w, clr=None):
         Flowable.__init__(self)
         self.width = w; self.height = 6*mm
-        self._c = clr or HexColor("#CC785C")
+        self._c = clr or HexColor("#4F46E5")
     def draw(self):
         self.canv.setFillColor(self._c)
         cx = self.width / 2
@@ -731,7 +731,7 @@ class PDFBuilder:
         self.lm, self.rm, self.tm, self.bm = lm*mm, rm*mm, tm*mm, bm*mm
         self.body_w = self.page_w - self.lm - self.rm
         self.body_h = self.page_h - self.tm - self.bm
-        self.accent_hex = config.get("accent_hex", "#CC785C")
+        self.accent_hex = config.get("accent_hex", "#4F46E5")
         self.ST = self._build_styles()
 
     def _build_styles(self):
@@ -1771,7 +1771,7 @@ def main():
     theme = load_theme(theme_name, args.theme_file)
     a = theme['accent']
     accent_hex = f"#{int(a.red*255):02x}{int(a.green*255):02x}{int(a.blue*255):02x}" \
-        if hasattr(a, 'red') else "#CC785C"
+        if hasattr(a, 'red') else "#4F46E5"
     page_size = args.page_size or fm_get(frontmatter, "page-size", "page_size", default="A4")
     author = args.author or fm_get(frontmatter, "author")
 

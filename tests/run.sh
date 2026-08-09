@@ -1,6 +1,6 @@
 #!/bin/bash
 # Batch test: generate PDFs for all test cases across themes
-SCRIPT="$(dirname "$0")/../lovstudio-any2pdf/scripts/md2pdf.py"
+SCRIPT="$(dirname "$0")/../sgc-any2pdf/scripts/md2pdf.py"
 OUT="/tmp/any2pdf-tests"
 rm -rf "$OUT" && mkdir -p "$OUT"
 

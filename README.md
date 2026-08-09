@@ -59,7 +59,7 @@ sudo apt install fonts-dejavu-core fonts-liberation fonts-freefont-ttf fonts-not
 ## Install
 
 ```bash
-npx skills add lovstudio/any2pdf -g -y
+npx skills add skill-publisher/any2pdf -g -y
 ```
 
 Works with 25+ AI agents: Claude Code, Cursor, GitHub Copilot, Gemini CLI, Codex, Cline, Warp, and more.
@@ -71,7 +71,7 @@ Works with 25+ AI agents: Claude Code, Cursor, GitHub Copilot, Gemini CLI, Codex
 <table>
 <tr>
 <td align="center" width="33%">
-<strong>Warm Academic</strong><br>
+<strong>Configurable Academic</strong><br>
 <sub>陶土色调，温润典雅</sub><br>
 <img src="previews/warm-academic.png" width="260">
 </td>
@@ -165,7 +165,7 @@ pip install reportlab
 # Optional, for rendered formula images instead of styled fallback text:
 pip install matplotlib
 
-python lovstudio-any2pdf/scripts/md2pdf.py \
+python sgc-any2pdf/scripts/md2pdf.py \
   --input report.md \
   --output report.pdf \
   --title "My Report" \
@@ -175,7 +175,7 @@ python lovstudio-any2pdf/scripts/md2pdf.py \
   --toc true
 ```
 
-See [SKILL.md](lovstudio-any2pdf/SKILL.md) for the full 20+ argument reference.
+See [SKILL.md](sgc-any2pdf/SKILL.md) for the full 20+ argument reference.
 
 ## License
 
