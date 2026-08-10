@@ -165,7 +165,7 @@ pip install reportlab
 # Optional, for rendered formula images instead of styled fallback text:
 pip install matplotlib
 
-python sgc-any2pdf/scripts/md2pdf.py \
+python lov-any2pdf/scripts/md2pdf.py \
   --input report.md \
   --output report.pdf \
   --title "My Report" \
@@ -175,7 +175,7 @@ python sgc-any2pdf/scripts/md2pdf.py \
   --toc true
 ```
 
-See [SKILL.md](sgc-any2pdf/SKILL.md) for the full 20+ argument reference.
+See [SKILL.md](lov-any2pdf/SKILL.md) for the full 20+ argument reference.
 
 ## License
 

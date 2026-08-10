@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dev mode: symlink installed skill to source repo, Ctrl+C to stop and restore
 
-SKILL_NAME="sgc-any2pdf"
+SKILL_NAME="lov-any2pdf"
 SKILL_DIR="$HOME/.claude/skills/$SKILL_NAME"
 SOURCE_DIR="$(cd "$(dirname "$0")/$SKILL_NAME" && pwd)"
 

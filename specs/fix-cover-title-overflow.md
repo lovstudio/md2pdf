@@ -28,7 +28,7 @@ cover styles with appropriate available widths:
 # Test
 
 ```bash
-python3 sgc-any2pdf/scripts/md2pdf.py \
+python3 lov-any2pdf/scripts/md2pdf.py \
   --input test-long-title.md \
   --output /tmp/test-long-title2.pdf \
   --theme warm-academic \

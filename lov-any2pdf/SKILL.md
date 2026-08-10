@@ -1,5 +1,5 @@
 ---
-name: sgc-any2pdf
+name: lov-any2pdf
 description: >
   Convert Markdown documents to professionally typeset PDF files with reportlab.
   Handles CJK/Latin mixed text, fenced code blocks, tables, blockquotes, Obsidian
